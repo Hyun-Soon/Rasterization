@@ -4,6 +4,89 @@
 #include <iostream>
 #include <wrl.h>
 #include <d3dcompiler.h>
+#include <vector>
+#include <glm/glm.hpp>
+
+std::ostream& operator<<(std::ostream& os, const glm::vec4& v)
+{
+	os << "(x, y, z): (" << v.x << ", " << v.y << ", " << v.z << ")";
+	return os;
+}
+
+struct Vertex
+{
+	glm::vec4 pos;
+	glm::vec2 uv;
+};
+
+struct Transformation
+{
+	float		thetaX = glm::radians(90.f);
+	float		thetaY = 0 / 180 * 3.141592f;
+	float		thetaZ = 0 / 180 * 3.141592f;
+	float		scaleX = 1.0f;
+	float		scaleY = 1.0f;
+	float		scaleZ = 1.0f;
+	glm::mat4x4 translation = {
+		{ 1.0f, 0.0f, 0.0f, 0.0f },
+		{ 0.0f, 1.0f, 0.0f, 0.0f },
+		{ 0.0f, 0.0f, 1.0f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f, 1.0f }
+	};
+	glm::mat4x4 rotateX = {
+		{ 1.0f, 0.0f, 0.0f, 0.0f },
+		{ 0.0f, cos(thetaX), -sin(thetaX), 0.0f },
+		{ 0.0f, sin(thetaX), cos(thetaX), 0.0f },
+		{ 0.0f, 0.0f, 0.0f, 1.0f }
+	};
+	glm::mat4x4 rotateY = {
+		{ cos(thetaY), 0.0f, sin(thetaY), 0.0f },
+		{ 0.0f, 1.0f, 0.0f, 0.0f },
+		{ -sin(thetaY), 0.0f, cos(thetaY), 0.0f },
+		{ 0.0f, 0.0f, 0.0f, 1.0f }
+	};
+	glm::mat4x4 rotateZ = {
+		{ cos(thetaZ), -sin(thetaZ), 0.0f, 0.0f },
+		{ sin(thetaZ), cos(thetaZ), 0.0f, 0.0f },
+		{ 0.0f, 0.0f, 1.0f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f, 1.0f }
+	};
+	glm::mat4x4 scale = {
+		{ scaleX, 0.0f, 0.0f, 0.0f },
+		{ 0.0f, scaleY, 0.0f, 0.0f },
+		{ 0.0f, 0.0f, scaleZ, 0.0f },
+		{ 0.0f, 0.0f, 0.0f, 1.0f }
+	};
+};
+
+class Mesh
+{
+public:
+	Mesh(std::vector<Vertex> vertices, std::vector<uint16_t> indices)
+	{
+		for (size_t i = 0; i < vertices.size(); i++)
+		{
+			this->vertices.push_back(vertices[i].pos);
+			this->normals.push_back(glm::vec4(0.0f, 0.0f, -1.0f, 0.0f));
+		}
+
+		this->indices = indices;
+	};
+	//~Mesh();
+	// void initBox(std::vector<glm::vec3> vertices, std::vector<uint16_t> indices)
+	//{
+	//	for (size_t i = 0; i < indices.size(); i++)
+	//	{
+	//		this->vertices.push_back({ vertices[indices[i]], 1.0f });
+	//		this->normals.push_back({ 0.0f, 0.0f, -1.0f, 0.0f });
+	//	}
+	// }
+
+	std::vector<glm::vec4> vertices;
+	std::vector<uint16_t>  indices;
+	std::vector<glm::vec4> normals;
+	Transformation		   transformation;
+};
 
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -39,7 +122,8 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 int main()
 {
-	const int width = 800, height = 600;
+	const int	width = 800, height = 600;
+	const float aspect_ratio = static_cast<float>(width) / height;
 
 	WNDCLASSEX wc = {
 		sizeof(WNDCLASSEX),
@@ -177,8 +261,167 @@ int main()
 	ID3D11InputLayout* layout;
 	deviceComPtr->CreateInputLayout(ied, 2, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &layout);
 	contextComPtr->IASetInputLayout(layout);
-	// TODO : implement after InitShaders();
 
-	std::cout << "Perfect Until Now!" << std::endl;
+	D3D11_SAMPLER_DESC sampDesc;
+	ZeroMemory(&sampDesc, sizeof(sampDesc));
+	sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	sampDesc.MinLOD = 0;
+	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	ID3D11SamplerState* colorSampler;
+	deviceComPtr->CreateSamplerState(&sampDesc, &colorSampler);
+
+	D3D11_TEXTURE2D_DESC textureDesc;
+	ZeroMemory(&textureDesc, sizeof(textureDesc));
+	textureDesc.MipLevels = textureDesc.ArraySize = 1;
+	textureDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.Usage = D3D11_USAGE_DYNAMIC;
+	textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	textureDesc.MiscFlags = 0;
+	textureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	textureDesc.Width = width;
+	textureDesc.Height = height;
+
+	ID3D11Texture2D*		  canvasTexture;
+	ID3D11ShaderResourceView* canvasTextureView;
+	ID3D11RenderTargetView*	  canvasRenderTargetView;
+	deviceComPtr->CreateTexture2D(&textureDesc, nullptr, &canvasTexture);
+	if (canvasTexture)
+	{
+		deviceComPtr->CreateShaderResourceView(canvasTexture, nullptr,
+			&canvasTextureView);
+
+		D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc;
+		ZeroMemory(&renderTargetViewDesc, sizeof(renderTargetViewDesc));
+		renderTargetViewDesc.Format = textureDesc.Format;
+		renderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+		renderTargetViewDesc.Texture2D.MipSlice = 0;
+
+		deviceComPtr->CreateRenderTargetView(canvasTexture, &renderTargetViewDesc,
+			&canvasRenderTargetView);
+	}
+	else
+	{
+		std::cerr << "CreateRenderTargetView() failed." << std::endl;
+	}
+
+	// Create vertex buffer
+	const std::vector<Vertex> vertices = {
+		{
+			{ -1.0f, -1.0f, 1.0f, 1.0f },
+			{ 0.0f, 1.0f },
+		},
+		{
+			{ -1.0f, 1.0f, 1.0f, 1.0f },
+			{ 0.0f, 0.0f },
+		},
+		{
+			{ 1.0f, 1.0f, 1.0f, 1.0f },
+			{ 1.0f, 0.0f },
+		},
+		{
+			{ 1.0f, -1.0f, 1.0f, 1.0f },
+			{ 1.0f, 0.0f },
+		},
+	};
+
+	D3D11_BUFFER_DESC bufferDesc;
+	ZeroMemory(&bufferDesc, sizeof(bufferDesc));
+	bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	bufferDesc.ByteWidth = UINT(sizeof(Vertex) * vertices.size());
+	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	bufferDesc.StructureByteStride = sizeof(Vertex);
+	D3D11_SUBRESOURCE_DATA vertexBufferData = {
+		0,
+	};
+	vertexBufferData.pSysMem = vertices.data();
+	vertexBufferData.SysMemPitch = 0;
+	vertexBufferData.SysMemSlicePitch = 0;
+
+	ID3D11Buffer* vertexBuffer = nullptr;
+	hr = deviceComPtr->CreateBuffer(&bufferDesc, &vertexBufferData, &vertexBuffer);
+	if (FAILED(hr))
+	{
+		std::cout << "CreateBuffer() failed. " << std::hex << hr
+				  << std::endl;
+	};
+
+	const std::vector<uint16_t> indices = {
+		0,
+		1,
+		2,
+		0,
+		2,
+		3,
+	};
+
+	UINT indexCount = UINT(indices.size());
+
+	D3D11_BUFFER_DESC bufferDesc2 = {};
+	bufferDesc2.Usage = D3D11_USAGE_DYNAMIC;
+	bufferDesc2.ByteWidth = UINT(sizeof(uint16_t) * indices.size());
+	bufferDesc2.BindFlags =
+		D3D11_BIND_INDEX_BUFFER;
+	bufferDesc2.CPUAccessFlags =
+		D3D11_CPU_ACCESS_WRITE;
+	bufferDesc2.StructureByteStride = sizeof(uint16_t);
+
+	D3D11_SUBRESOURCE_DATA indexBufferData = { 0 };
+	indexBufferData.pSysMem = indices.data();
+	indexBufferData.SysMemPitch = 0;
+	indexBufferData.SysMemSlicePitch = 0;
+
+	ID3D11Buffer* indexBuffer;
+	deviceComPtr->CreateBuffer(&bufferDesc2, &indexBufferData, &indexBuffer);
+
+	std::vector<glm::vec4> pixels;
+	pixels.resize(width * height);
+
+	std::shared_ptr<Mesh> object = std::make_shared<Mesh>(vertices, indices); // one object that consist of triangles
+
+	// Render
+	std::vector<std::shared_ptr<Mesh>> meshes; // objects
+	meshes.push_back(object);
+	while (1)
+	{
+		std::fill(pixels.begin(), pixels.end(),
+			glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+
+		std::vector<float> depthBuffer;
+		depthBuffer.resize(pixels.size());
+		std::fill(depthBuffer.begin(), depthBuffer.end(), 10.0f);
+
+		for (const auto& mesh : meshes)
+		{
+			for (size_t i = 0; i < mesh->indices.size(); i += 3)
+			{
+				const size_t i1 = mesh->indices[i];
+				const size_t i2 = mesh->indices[i + 1];
+				const size_t i3 = mesh->indices[i + 2];
+
+				glm::vec4 vertex1 = mesh->vertices[i1];
+				glm::vec4 vertex2 = mesh->vertices[i2];
+				glm::vec4 vertex3 = mesh->vertices[i3];
+
+				vertex1 = mesh->transformation.rotateZ * mesh->transformation.rotateY * mesh->transformation.rotateX * mesh->transformation.translation * mesh->transformation.scale * vertex1;
+				vertex2 = mesh->transformation.rotateZ * mesh->transformation.rotateY * mesh->transformation.rotateX * mesh->transformation.translation * mesh->transformation.scale * vertex2;
+				vertex3 = mesh->transformation.rotateZ * mesh->transformation.rotateY * mesh->transformation.rotateX * mesh->transformation.translation * mesh->transformation.scale * vertex3;
+
+				// debug
+				/*std::cout << vertex1 << std::endl;
+				std::cout << vertex2 << std::endl;
+				std::cout << vertex3 << std::endl
+						  << std::endl;*/
+			}
+		}
+	}
+
+	// std::cout << "Perfect Until Now!" << std::endl;
 	return 0;
 }
