@@ -385,6 +385,15 @@ int main()
 
 	std::shared_ptr<Mesh> object = std::make_shared<Mesh>(vertices, indices); // one object that consist of triangles
 
+	float		camThetaY = 0 / 180 * 3.141592f;
+	glm::mat4x4 camRotateY = {
+		{ cos(-camThetaY), 0.0f, sin(-camThetaY), 0.0f },
+		{ 0.0f, 1.0f, 0.0f, 0.0f },
+		{ -sin(-camThetaY), 0.0f, cos(-camThetaY), 0.0f },
+		{ 0.0f, 0.0f, 0.0f, 1.0f }
+	};
+	const float distCamToScreen = 1.0f;
+
 	// Render
 	std::vector<std::shared_ptr<Mesh>> meshes; // objects
 	meshes.push_back(object);
@@ -408,16 +417,37 @@ int main()
 				glm::vec4 vertex1 = mesh->vertices[i1];
 				glm::vec4 vertex2 = mesh->vertices[i2];
 				glm::vec4 vertex3 = mesh->vertices[i3];
+				glm::vec4 normal1 = mesh->normals[i1];
+				glm::vec4 normal2 = mesh->normals[i2];
+				glm::vec4 normal3 = mesh->normals[i3];
 
-				vertex1 = mesh->transformation.rotateZ * mesh->transformation.rotateY * mesh->transformation.rotateX * mesh->transformation.translation * mesh->transformation.scale * vertex1;
-				vertex2 = mesh->transformation.rotateZ * mesh->transformation.rotateY * mesh->transformation.rotateX * mesh->transformation.translation * mesh->transformation.scale * vertex2;
-				vertex3 = mesh->transformation.rotateZ * mesh->transformation.rotateY * mesh->transformation.rotateX * mesh->transformation.translation * mesh->transformation.scale * vertex3;
+				glm::mat4x4	 modelMat = mesh->transformation.rotateZ * mesh->transformation.rotateY * mesh->transformation.rotateX * mesh->transformation.translation * mesh->transformation.scale;
+				glm ::mat4x4 invTranspose = modelMat;
+				invTranspose[3] = { 0, 0, 0, 1 };
+				invTranspose = glm::transpose(glm::inverse(invTranspose));
+				vertex1 = camRotateY * modelMat * vertex1;
+				vertex2 = camRotateY * modelMat * vertex2;
+				vertex3 = camRotateY * modelMat * vertex3;
+				normal1 = camRotateY * invTranspose * normal1;
+				normal2 = camRotateY * invTranspose * normal2;
+				normal3 = camRotateY * invTranspose * normal3;
 
 				// debug
 				/*std::cout << vertex1 << std::endl;
 				std::cout << vertex2 << std::endl;
 				std::cout << vertex3 << std::endl
 						  << std::endl;*/
+
+				// perpective projection
+				const float projScale1 = distCamToScreen / (distCamToScreen + vertex1.z);
+				const float projScale2 = distCamToScreen / (distCamToScreen + vertex2.z);
+				const float projScale3 = distCamToScreen / (distCamToScreen + vertex3.z);
+
+				const glm::vec2 pointProj1 = { vertex1.x * projScale1, vertex1.y * projScale1 };
+				const glm::vec2 pointProj2 = { vertex2.x * projScale2, vertex2.y * projScale2 };
+				const glm::vec2 pointProj3 = { vertex3.x * projScale3, vertex3.y * projScale3 };
+
+				// const glm::vec2 pointNDC1 = { pointProj1, pointProj }
 			}
 		}
 	}
