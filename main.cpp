@@ -447,7 +447,9 @@ int main()
 				const glm::vec2 pointProj2 = { vertex2.x * projScale2, vertex2.y * projScale2 };
 				const glm::vec2 pointProj3 = { vertex3.x * projScale3, vertex3.y * projScale3 };
 
-				// const glm::vec2 pointNDC1 = { pointProj1, pointProj }
+				const glm::vec2 poinrtNDC1 = pointProj1 / aspect_ratio;
+				const glm::vec2 poinrtNDC2 = pointProj2 / aspect_ratio;
+				const glm::vec2 poinrtNDC3 = pointProj3 / aspect_ratio;
 			}
 		}
 	}
