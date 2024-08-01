@@ -7,10 +7,23 @@
 #include <vector>
 #include <glm/glm.hpp>
 
+std::ostream& operator<<(std::ostream& os, const glm::vec2& v)
+{
+	os << "(x, y): (" << v.x << ", " << v.y << ")";
+	return os;
+}
+
 std::ostream& operator<<(std::ostream& os, const glm::vec4& v)
 {
 	os << "(x, y, z): (" << v.x << ", " << v.y << ", " << v.z << ")";
 	return os;
+}
+
+float EdgeFunction(glm::vec2 v0, glm::vec2 v1, glm::vec2 point)
+{
+	const glm::vec2 a = v1 - v0;
+	const glm::vec2 b = point - v0;
+	return (a.x * b.y - b.x * a.y);
 }
 
 struct Vertex
@@ -21,9 +34,9 @@ struct Vertex
 
 struct Transformation
 {
-	float		thetaX = glm::radians(90.f);
-	float		thetaY = 0 / 180 * 3.141592f;
-	float		thetaZ = 0 / 180 * 3.141592f;
+	float		thetaX = glm::radians(0.f);
+	float		thetaY = glm::radians(0.f);
+	float		thetaZ = glm::radians(0.f);
 	float		scaleX = 1.0f;
 	float		scaleY = 1.0f;
 	float		scaleZ = 1.0f;
@@ -401,62 +414,6 @@ int main()
 	// Render
 	std::vector<std::shared_ptr<Mesh>> meshes; // objects
 	meshes.push_back(object);
-	// while (1)
-	//{
-	//	std::fill(pixels.begin(), pixels.end(),
-	//		glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
-
-	//	std::vector<float> depthBuffer;
-	//	depthBuffer.resize(pixels.size());
-	//	std::fill(depthBuffer.begin(), depthBuffer.end(), 10.0f);
-
-	//	for (const auto& mesh : meshes)
-	//	{
-	//		for (size_t i = 0; i < mesh->indices.size(); i += 3)
-	//		{
-	//			const size_t i1 = mesh->indices[i];
-	//			const size_t i2 = mesh->indices[i + 1];
-	//			const size_t i3 = mesh->indices[i + 2];
-
-	//			glm::vec4 vertex1 = mesh->vertices[i1];
-	//			glm::vec4 vertex2 = mesh->vertices[i2];
-	//			glm::vec4 vertex3 = mesh->vertices[i3];
-	//			glm::vec4 normal1 = mesh->normals[i1];
-	//			glm::vec4 normal2 = mesh->normals[i2];
-	//			glm::vec4 normal3 = mesh->normals[i3];
-
-	//			glm::mat4x4	 modelMat = mesh->transformation.rotateZ * mesh->transformation.rotateY * mesh->transformation.rotateX * mesh->transformation.translation * mesh->transformation.scale;
-	//			glm ::mat4x4 invTranspose = modelMat;
-	//			invTranspose[3] = { 0, 0, 0, 1 };
-	//			invTranspose = glm::transpose(glm::inverse(invTranspose));
-	//			vertex1 = camRotateY * modelMat * vertex1;
-	//			vertex2 = camRotateY * modelMat * vertex2;
-	//			vertex3 = camRotateY * modelMat * vertex3;
-	//			normal1 = camRotateY * invTranspose * normal1;
-	//			normal2 = camRotateY * invTranspose * normal2;
-	//			normal3 = camRotateY * invTranspose * normal3;
-
-	//			// debug
-	//			/*std::cout << vertex1 << std::endl;
-	//			std::cout << vertex2 << std::endl;
-	//			std::cout << vertex3 << std::endl
-	//					  << std::endl;*/
-
-	//			// perpective projection
-	//			const float projScale1 = distCamToScreen / (distCamToScreen + vertex1.z);
-	//			const float projScale2 = distCamToScreen / (distCamToScreen + vertex2.z);
-	//			const float projScale3 = distCamToScreen / (distCamToScreen + vertex3.z);
-
-	//			const glm::vec2 pointProj1 = { vertex1.x * projScale1, vertex1.y * projScale1 };
-	//			const glm::vec2 pointProj2 = { vertex2.x * projScale2, vertex2.y * projScale2 };
-	//			const glm::vec2 pointProj3 = { vertex3.x * projScale3, vertex3.y * projScale3 };
-
-	//			const glm::vec2 poinrtNDC1 = pointProj1 / aspect_ratio;
-	//			const glm::vec2 poinrtNDC2 = pointProj2 / aspect_ratio;
-	//			const glm::vec2 poinrtNDC3 = pointProj3 / aspect_ratio;
-	//		}
-	//	}
-	//}
 
 	MSG msg = {};
 	while (msg.message != WM_QUIT)
@@ -469,39 +426,173 @@ int main()
 		else
 		{
 			// clear pixels
-			std::fill(pixels.begin(), pixels.end(), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+			std::fill(pixels.begin(), pixels.end(), glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 
-			// TODO
+			std::vector<float> depthBuffer;
+			depthBuffer.resize(pixels.size());
+			std::fill(depthBuffer.begin(), depthBuffer.end(), 10.0f);
 
-			D3D11_MAPPED_SUBRESOURCE ms;
-			contextComPtr->Map(canvasTexture, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
-			memcpy(ms.pData, pixels.data(), pixels.size() * sizeof(glm::vec4));
-			contextComPtr->Unmap(canvasTexture, NULL);
+			for (const auto& mesh : meshes)
+			{
+				for (size_t i = 0; i < mesh->indices.size(); i += 3)
+				{
+					const size_t i1 = mesh->indices[i];
+					const size_t i2 = mesh->indices[i + 1];
+					const size_t i3 = mesh->indices[i + 2];
 
-			float clearColor[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
-			contextComPtr->RSSetViewports(1, &viewport);
-			contextComPtr->OMSetRenderTargets(1, renderTargetViewComPtr.GetAddressOf(), nullptr);
-			contextComPtr->ClearRenderTargetView(renderTargetViewComPtr.Get(), clearColor);
+					glm::vec4 vertex1 = mesh->vertices[i1];
+					glm::vec4 vertex2 = mesh->vertices[i2];
+					glm::vec4 vertex3 = mesh->vertices[i3];
+					// std::cout << "before transformation vertex1 : " << vertex1 << std::endl;
+					// std::cout << "before transformation vertex2 : " << vertex2 << std::endl;
+					// std::cout << "before transformation vertex3 : " << vertex3 << std::endl;
+					glm::vec4 normal1 = mesh->normals[i1];
+					glm::vec4 normal2 = mesh->normals[i2];
+					glm::vec4 normal3 = mesh->normals[i3];
 
-			contextComPtr->VSSetShader(vertexShader, 0, 0);
-			contextComPtr->PSSetShader(pixelShader, 0, 0);
+					glm::mat4x4 modelMat = mesh->transformation.rotateZ * mesh->transformation.rotateY * mesh->transformation.rotateX * mesh->transformation.translation * mesh->transformation.scale;
+					glm::mat4x4 invTranspose = modelMat;
+					invTranspose[3] = { 0, 0, 0, 1 };
+					invTranspose = glm::transpose(glm::inverse(invTranspose));
+					vertex1 = camRotateY * modelMat * vertex1;
+					vertex2 = camRotateY * modelMat * vertex2;
+					vertex3 = camRotateY * modelMat * vertex3;
+					// std::cout << "after transformation vertex1 : " << vertex1 << std::endl;
+					// std::cout << "after transformation vertex2 : " << vertex2 << std::endl;
+					// std::cout << "after transformation vertex3 : " << vertex3 << std::endl;
+					normal1 = camRotateY * invTranspose * normal1;
+					normal2 = camRotateY * invTranspose * normal2;
+					normal3 = camRotateY * invTranspose * normal3;
 
-			UINT stride = sizeof(Vertex);
-			UINT offset = 0;
-			contextComPtr->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
-			contextComPtr->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+					// debug
+					/*std::cout << vertex1 << std::endl;
+					std::cout << vertex2 << std::endl;
+					std::cout << vertex3 << std::endl
+							  << std::endl;*/
 
-			contextComPtr->PSSetSamplers(0, 1,
-				&colorSampler);
-			contextComPtr->PSSetShaderResources(0, 1, &canvasTextureView);
-			contextComPtr->IASetPrimitiveTopology(
-				D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			contextComPtr->DrawIndexed(indexCount, 0, 0);
+					// perpective projection
+					const float projScale1 = distCamToScreen / (distCamToScreen + vertex1.z);
+					const float projScale2 = distCamToScreen / (distCamToScreen + vertex2.z);
+					const float projScale3 = distCamToScreen / (distCamToScreen + vertex3.z);
 
-			// Present the frame
-			swapChainComPtr->Present(1, 0);
+					// std::cout << "projScale1 : " << projScale1 << std::endl;
+					// std::cout << "projScale2 : " << projScale2 << std::endl;
+					// std::cout << "projScale3 : " << projScale3 << std::endl;
+					// std::cout << vertex1.z << " " << vertex2.z << " " << vertex3.z << std::endl;
+
+					const glm::vec2 pointProj1 = { vertex1.x * projScale1, vertex1.y * projScale1 };
+					const glm::vec2 pointProj2 = { vertex2.x * projScale2, vertex2.y * projScale2 };
+					const glm::vec2 pointProj3 = { vertex3.x * projScale3, vertex3.y * projScale3 };
+
+					// std::cout << "pointProj1 " << pointProj1 << std::endl;
+					// std::cout << "pointProj2 " << pointProj2 << std::endl;
+					// std::cout << "pointProj3 " << pointProj3 << std::endl;
+
+					// skip clipping
+
+					const glm::vec2 pointNDC1 = pointProj1;
+					const glm::vec2 pointNDC2 = pointProj2;
+					const glm::vec2 pointNDC3 = pointProj3;
+
+					// std::cout << "vertex1 " << pointNDC1 << "\n";
+					// std::cout << "vertex2 " << pointNDC2 << "\n";
+					// std::cout << "vertex3 " << pointNDC3 << "\n";
+
+					glm::vec2 rasterCoord1 = glm::vec2((pointNDC1.x + 1) / 2.0f * width - 0.5f,
+						(-pointNDC1.y + 1) / 2.0f * height - 0.5f);
+					glm::vec2 rasterCoord2 = glm::vec2((pointNDC2.x + 1) / 2.0f * width - 0.5f,
+						(-pointNDC2.y + 1) / 2.0f * height - 0.5f);
+					glm::vec2 rasterCoord3 = glm::vec2((pointNDC3.x + 1) / 2.0f * width - 0.5f,
+						(-pointNDC3.y + 1) / 2.0f * height - 0.5f);
+
+					// std::cout << rasterCoord1 << std::endl;
+					// std::cout << rasterCoord2 << std::endl;
+					// std::cout << rasterCoord3 << std::endl;
+
+					const float area = EdgeFunction(rasterCoord1, rasterCoord2, rasterCoord3);
+
+					const int minX = glm::clamp(glm::floor(std::min({ rasterCoord1.x, rasterCoord2.x, rasterCoord3.x })), 0.0f, float(width - 1));
+					const int minY = glm::clamp(glm::floor(std::min({ rasterCoord1.y, rasterCoord2.y, rasterCoord3.y })), 0.0f, float(height - 1));
+					const int maxX = glm::clamp(glm::ceil(std::max({ rasterCoord1.x, rasterCoord2.x, rasterCoord3.x })), 0.0f, float(width - 1));
+					const int maxY = glm::clamp(glm::ceil(std::max({ rasterCoord1.y, rasterCoord2.y, rasterCoord3.y })), 0.0f, float(height - 1));
+
+					for (int i = minX; i <= maxX; i++)
+					{
+						for (int j = minY; j <= maxY; j++)
+						{
+							glm::vec2 point = { (float)i, (float)j };
+
+							float w1 = EdgeFunction(rasterCoord1, rasterCoord2, point) / area;
+							float w2 = EdgeFunction(rasterCoord2, rasterCoord3, point) / area;
+							float w3 = EdgeFunction(rasterCoord3, rasterCoord1, point) / area;
+
+							if (w1 >= 0.0f && w2 >= 0.0f && w3 >= 0.0f) //?
+							{
+								// perspective-correct interpolation
+								const float z1 = vertex1.z + distCamToScreen;
+								const float z2 = vertex2.z + distCamToScreen;
+								const float z3 = vertex3.z + distCamToScreen;
+
+								w1 /= z1;
+								w2 /= z2;
+								w3 /= z3;
+								const float wSum = w1 + w2 + w3;
+								w1 /= wSum;
+								w2 /= wSum;
+								w3 /= wSum;
+
+								const glm::vec3 p1 = vertex1;
+								const glm::vec3 p2 = vertex2;
+								const glm::vec3 p3 = vertex3;
+
+								const glm::vec3 n1 = area < 0.0f ? -normal1 : normal1;
+								const glm::vec3 n2 = area < 0.0f ? -normal2 : normal2;
+								const glm::vec3 n3 = area < 0.0f ? -normal3 : normal3;
+
+								const float depth = w1 * z1 + w2 * z2 + w3 * z3;
+
+								if (depth < depthBuffer[i * width + j])
+								{
+									depthBuffer[i * width + j] = depth;
+
+									pixels[i * width + j] = glm::vec4(0.6f, 0.6f, 0.6f, 1.0f);
+								}
+							}
+						}
+					}
+				}
+			}
 		}
-	};
+
+		////////
+		D3D11_MAPPED_SUBRESOURCE ms;
+		contextComPtr->Map(canvasTexture, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
+		memcpy(ms.pData, pixels.data(), pixels.size() * sizeof(glm::vec4));
+		contextComPtr->Unmap(canvasTexture, NULL);
+
+		float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		contextComPtr->RSSetViewports(1, &viewport);
+		contextComPtr->OMSetRenderTargets(1, renderTargetViewComPtr.GetAddressOf(), nullptr);
+		contextComPtr->ClearRenderTargetView(renderTargetViewComPtr.Get(), clearColor);
+
+		contextComPtr->VSSetShader(vertexShader, 0, 0);
+		contextComPtr->PSSetShader(pixelShader, 0, 0);
+
+		UINT stride = sizeof(Vertex);
+		UINT offset = 0;
+		contextComPtr->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+		contextComPtr->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+
+		contextComPtr->PSSetSamplers(0, 1,
+			&colorSampler);
+		contextComPtr->PSSetShaderResources(0, 1, &canvasTextureView);
+		contextComPtr->IASetPrimitiveTopology(
+			D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		contextComPtr->DrawIndexed(indexCount, 0, 0);
+
+		// Present the frame
+		swapChainComPtr->Present(1, 0);
+	}
 
 	std::cout << "Perfect Until Now!" << std::endl;
 	return 0;
